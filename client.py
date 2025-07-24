@@ -1,47 +1,51 @@
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langchain_groq import ChatGroq
-
 from dotenv import load_dotenv
-load_dotenv()
-
+import os
 import asyncio
 
+load_dotenv()
+
 async def main():
-    client=MultiServerMCPClient(
-        {
-            "math":{
-                "command":"python",
-                "args":["mathserver.py"], ## Ensure correct absolute path
-                "transport":"stdio",
-            
-            },
-            "weather": {
-                "url": "http://localhost:8000/mcp",  # Ensure server is running here
-                "transport": "streamable_http",
-            }
+    client = MultiServerMCPClient(
+    {
+        "math": {
+            "command": "python",
+            "args": ["mathserver.py"],
+            "transport": "stdio",
+        },
+        "weather": {
+            "command": "python",  # Ensure server is running here
+            "args": ["weather.py"],
+            "transport": "stdio",
+    }
+    }
+)
 
-        }
-    )
 
-    import os
-    os.environ["GROQ_API_KEY"]=os.getenv("GROQ_API_KEY")
+    # Load Groq API Key
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY not found in environment variables")
+    
+    os.environ["GROQ_API_KEY"] = groq_api_key
 
-    tools=await client.get_tools()
-    model=ChatGroq(model="qwen-qwq-32b")
-    agent=create_react_agent(
-        model,tools
-    )
+    # Load tools and model
+    tools = await client.get_tools()
+    model = ChatGroq(model="llama3-70b-8192")
+    agent = create_react_agent(model, tools)
 
-    math_response = await agent.ainvoke(
-        {"messages": [{"role": "user", "content": "what's (3 + 5) x 12?"}]}
-    )
+    print("\n🔗 AI Agent is ready! Type a question or 'exit' to quit.\n")
 
-    print("Math response:", math_response['messages'][-1].content)
+    while True:
+        user_input = input("🧠 You: ")
+        if user_input.lower() in ["exit", "quit"]:
+            print("👋 Goodbye!")
+            break
 
-    weather_response = await agent.ainvoke(
-        {"messages": [{"role": "user", "content": "what is the weather in California?"}]}
-    )
-    print("Weather response:", weather_response['messages'][-1].content)
+        response = await agent.ainvoke({"messages": [{"role": "user", "content": user_input}]})
+        print("🤖 Agent:", response['messages'][-1].content)
+        print()
 
 asyncio.run(main())
